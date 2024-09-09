@@ -3,4 +3,4 @@ flask-cors
 yt-dlp
 moviepy
 whisper
-gunicorn
+gunicorn 
