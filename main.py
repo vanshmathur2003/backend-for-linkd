@@ -62,7 +62,7 @@ def download_video():
 @app.route('/download/audio', methods=['POST'])
 def download_audio():
     data = request.json
-    url = data.get('url')
+    url = data.get('url') 
     
     if not url:
         return jsonify({"error": "URL is required"}), 400
