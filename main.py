@@ -12,7 +12,8 @@ CORS(app)
 def download_reel(url):
     ydl_opts = {
         'format': 'best',
-        'outtmpl': 'video.%(ext)s',  # Save video temporarily in memory
+        'outtmpl': 'video.%(ext)s',
+        'cookiefile': 'cookies.txt',  # Use cookies.txt
     }
     try:
         with YoutubeDL(ydl_opts) as ydl:
@@ -20,7 +21,7 @@ def download_reel(url):
             file_path = ydl.prepare_filename(info_dict)
             with open(file_path, 'rb') as file:
                 file_content = file.read()
-            os.remove(file_path)  # Remove the file after reading its content
+            os.remove(file_path)
             return file_content
     except Exception as e:
         print(f"An error occurred while downloading the reel: {e}")
@@ -56,15 +57,12 @@ def download_video():
     if not url:
         return jsonify({"error": "URL is required"}), 400
     
-    try:
-        video_content = download_reel(url)
-        if video_content:
-            return send_file(io.BytesIO(video_content), as_attachment=True, download_name='video.mp4', mimetype='video/mp4')
-        else:
-            return jsonify({"error": "Failed to download the video"}), 500
-    except Exception as e:
-        print(f"Error in download_video: {e}")
-        return jsonify({"error": "Internal server error"}), 500
+    video_content = download_reel(url)
+    
+    if video_content:
+        return send_file(io.BytesIO(video_content), as_attachment=True, download_name='video.mp4', mimetype='video/mp4')
+
+    return jsonify({"error": "Failed to download the video"}), 500
 
 @app.route('/download/audio', methods=['POST'])
 def download_audio():
@@ -74,19 +72,14 @@ def download_audio():
     if not url:
         return jsonify({"error": "URL is required"}), 400
     
-    try:
-        video_content = download_reel(url)
-        if video_content:
-            audio_path = extract_audio(video_content)
-            if audio_path:
-                return send_file(audio_path, as_attachment=True, download_name='audio.wav', mimetype='audio/wav')
-            else:
-                return jsonify({"error": "Failed to extract audio"}), 500
-        else:
-            return jsonify({"error": "Failed to download the video"}), 500
-    except Exception as e:
-        print(f"Error in download_audio: {e}")
-        return jsonify({"error": "Internal server error"}), 500
+    video_content = download_reel(url)
+    
+    if video_content:
+        audio_path = extract_audio(video_content)
+        if audio_path:
+            return send_file(audio_path, as_attachment=True, download_name='audio.wav', mimetype='audio/wav')
+
+    return jsonify({"error": "Failed to download or extract audio"}), 500
 
 @app.route('/download/subtitles', methods=['POST'])
 def download_subtitles():
@@ -96,24 +89,17 @@ def download_subtitles():
     if not url:
         return jsonify({"error": "URL is required"}), 400
     
-    try:
-        video_content = download_reel(url)
-        if video_content:
-            audio_path = extract_audio(video_content)
-            if audio_path:
-                subtitles_text = audio_to_text(audio_path)
-                if subtitles_text is not None:
-                    subtitles_io = io.StringIO(subtitles_text)
-                    return send_file(io.BytesIO(subtitles_io.getvalue().encode()), as_attachment=True, download_name='subtitles.txt', mimetype='text/plain')
-                else:
-                    return jsonify({"error": "Failed to transcribe audio"}), 500
-            else:
-                return jsonify({"error": "Failed to extract audio"}), 500
-        else:
-            return jsonify({"error": "Failed to download the video"}), 500
-    except Exception as e:
-        print(f"Error in download_subtitles: {e}")
-        return jsonify({"error": "Internal server error"}), 500
+    video_content = download_reel(url)
+    
+    if video_content:
+        audio_path = extract_audio(video_content)
+        if audio_path:
+            subtitles_text = audio_to_text(audio_path)
+            if subtitles_text is not None:
+                subtitles_io = io.StringIO(subtitles_text)
+                return send_file(io.BytesIO(subtitles_io.getvalue().encode()), as_attachment=True, download_name='subtitles.txt', mimetype='text/plain')
+
+    return jsonify({"error": "Failed to download or process subtitles"}), 500
 
 if __name__ == "__main__":
     app.run(debug=True, host='0.0.0.0', port=4000)
