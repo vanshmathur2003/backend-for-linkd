@@ -7,34 +7,29 @@ import moviepy.editor as mp
 import whisper
 
 app = Flask(__name__)
-CORS(app)
+CORS(app) 
 
 def download_reel(url):
     ydl_opts = {
         'format': 'best',
-        'outtmpl': 'video.%(ext)s',
-        'cookiefile': 'cookies.txt',  # Use cookies.txt
+        'outtmpl': '%(id)s.%(ext)s',
     }
     try:
         with YoutubeDL(ydl_opts) as ydl:
             info_dict = ydl.extract_info(url, download=True)
             file_path = ydl.prepare_filename(info_dict)
-            with open(file_path, 'rb') as file:
-                file_content = file.read()
-            os.remove(file_path)
-            return file_content
+            return file_path
     except Exception as e:
         print(f"An error occurred while downloading the reel: {e}")
         return None
 
-def extract_audio(video_content):
+def extract_audio(reel_path):
     try:
-        video = mp.VideoFileClip(io.BytesIO(video_content))
-        audio_path = io.BytesIO()
+        video = mp.VideoFileClip(reel_path)
+        audio_path = reel_path.replace('.mp4', '.wav')
         audio = video.audio
         audio.write_audiofile(audio_path)
-        audio_path.seek(0)
-        print("Audio extracted and saved in memory")
+        print(f"Audio extracted and saved as '{audio_path}'")
         return audio_path
     except Exception as e:
         print(f"An error occurred while extracting audio: {e}")
@@ -57,10 +52,10 @@ def download_video():
     if not url:
         return jsonify({"error": "URL is required"}), 400
     
-    video_content = download_reel(url)
+    video_path = download_reel(url)
     
-    if video_content:
-        return send_file(io.BytesIO(video_content), as_attachment=True, download_name='video.mp4', mimetype='video/mp4')
+    if video_path:
+        return send_file(video_path, as_attachment=True, download_name='video.mp4')
 
     return jsonify({"error": "Failed to download the video"}), 500
 
@@ -72,12 +67,12 @@ def download_audio():
     if not url:
         return jsonify({"error": "URL is required"}), 400
     
-    video_content = download_reel(url)
+    video_path = download_reel(url)
     
-    if video_content:
-        audio_path = extract_audio(video_content)
+    if video_path:
+        audio_path = extract_audio(video_path)
         if audio_path:
-            return send_file(audio_path, as_attachment=True, download_name='audio.wav', mimetype='audio/wav')
+            return send_file(audio_path, as_attachment=True, download_name='audio.wav')
 
     return jsonify({"error": "Failed to download or extract audio"}), 500
 
@@ -89,15 +84,20 @@ def download_subtitles():
     if not url:
         return jsonify({"error": "URL is required"}), 400
     
-    video_content = download_reel(url)
+    video_path = download_reel(url)
     
-    if video_content:
-        audio_path = extract_audio(video_content)
+    if video_path:
+        audio_path = extract_audio(video_path)
         if audio_path:
             subtitles_text = audio_to_text(audio_path)
             if subtitles_text is not None:
                 subtitles_io = io.StringIO(subtitles_text)
-                return send_file(io.BytesIO(subtitles_io.getvalue().encode()), as_attachment=True, download_name='subtitles.txt', mimetype='text/plain')
+                subtitles_io.seek(0)
+                
+                subtitles_bytes_io = io.BytesIO(subtitles_io.getvalue().encode())
+                subtitles_bytes_io.seek(0)
+                
+                return send_file(subtitles_bytes_io, as_attachment=True, download_name='subtitles.txt', mimetype='text/plain')
 
     return jsonify({"error": "Failed to download or process subtitles"}), 500
 
